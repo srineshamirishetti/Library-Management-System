@@ -1,0 +1,322 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+// ----------- BOOK STRUCT -----------
+typedef struct Book {
+    int id;
+    char title[50];
+    int available;
+    char issued_to[50];
+    struct Book *prev, *next;
+} Book;
+
+Book *head = NULL;
+
+// ----------- QUEUE (WAITING LIST) -----------
+typedef struct Queue {
+    int book_id;
+    char name[50];
+    struct Queue *next;
+} Queue;
+
+Queue *front = NULL, *rear = NULL;
+
+// ----------- STACK (RECENT RETURNS) -----------
+typedef struct Stack {
+    int book_id;
+    struct Stack *next;
+} Stack;
+
+Stack *top = NULL;
+
+// ----------- SEARCH BOOK -----------
+Book* searchBook(int id) {
+    Book *temp = head;
+    while (temp) {
+        if (temp->id == id)
+            return temp;
+        temp = temp->next;
+    }
+    return NULL;
+}
+
+// ----------- ADD BOOK (WITH DUPLICATE CHECK) -----------
+void addBook() {
+    int id;
+    char title[50];
+
+    printf("Enter Book ID: ");
+    scanf("%d", &id);
+
+    //  Prevent duplicate ID
+    if (searchBook(id) != NULL) {
+        printf("Error: Book ID already exists!\n");
+        return;
+    }
+
+    printf("Enter Title: ");
+    scanf(" %[^\n]", title);
+
+    Book *newBook = (Book*)malloc(sizeof(Book));
+    newBook->id = id;
+    strcpy(newBook->title, title);
+    newBook->available = 1;
+    strcpy(newBook->issued_to, "None");
+
+    newBook->next = newBook->prev = NULL;
+
+    if (head == NULL) {
+        head = newBook;
+    } else {
+        Book *temp = head;
+        while (temp->next)
+            temp = temp->next;
+
+        temp->next = newBook;
+        newBook->prev = temp;
+    }
+
+    printf("Book added successfully!\n");
+}
+
+// ----------- DISPLAY BOOKS -----------
+void displayBooks() {
+    if (head == NULL) {
+        printf("No books available.\n");
+        return;
+    }
+    Book *temp = head;
+    printf("\n--- BOOK LIST ---\n");
+    while (temp) {
+        printf("ID: %d | Title: %s | Status: %s",
+               temp->id,
+               temp->title,
+               temp->available ? "Available" : "Issued");
+
+        if (!temp->available) {
+            printf(" | Issued To: %s", temp->issued_to);
+        }
+
+        printf("\n");
+        temp = temp->next;
+    }
+}
+// ----------- QUEUE FUNCTIONS -----------
+void enqueue(int id, char name[]) {
+    Queue *newNode = (Queue*)malloc(sizeof(Queue));
+    newNode->book_id = id;
+    strcpy(newNode->name, name);
+    newNode->next = NULL;
+
+    if (rear == NULL) {
+        front = rear = newNode;
+    } else {
+        rear->next = newNode;
+        rear = newNode;
+    }
+}
+Queue* dequeue() {
+    if (front == NULL)
+        return NULL;
+    Queue *temp = front;
+    front = front->next;
+
+    if (front == NULL)
+        rear = NULL;
+    return temp;
+}
+
+// ----------- STACK FUNCTIONS -----------
+void push(int id) {
+    Stack *newNode = (Stack*)malloc(sizeof(Stack));
+    newNode->book_id = id;
+    newNode->next = top;
+    top = newNode;
+}
+
+// ----------- ISSUE BOOK -----------
+void issueBook() {
+    int id;
+    char name[50];
+
+    printf("Enter Book ID: ");
+    scanf("%d", &id);
+
+    Book *book = searchBook(id);
+
+    if (book == NULL) {
+        printf("Book not found!\n");
+        return;
+    }
+
+    if (book->available) {
+        printf("Enter your name: ");
+        scanf(" %[^\n]", name);
+
+        book->available = 0;
+        strcpy(book->issued_to, name);
+
+        printf("Book issued to %s\n", name);
+    } else {
+        printf("Book already issued to %s\n", book->issued_to);
+
+        printf("Enter your name for waiting list: ");
+        scanf(" %[^\n]", name);
+
+        enqueue(id, name);
+        printf("Added to waiting list.\n");
+    }
+}
+
+// ----------- RETURN BOOK -----------
+void returnBook() {
+    int id;
+
+    printf("Enter Book ID to return: ");
+    scanf("%d", &id);
+
+    Book *book = searchBook(id);
+
+    if (book == NULL) {
+        printf("Book not found!\n");
+        return;
+    }
+
+    push(id);
+
+    Queue *nextUser = dequeue();
+
+    if (nextUser != NULL && nextUser->book_id == id) {
+        strcpy(book->issued_to, nextUser->name);
+        printf("Book given to waiting user: %s\n", nextUser->name);
+        free(nextUser);
+        book->available = 0;
+    } else {
+        book->available = 1;
+        strcpy(book->issued_to, "None");
+        printf("Book returned and now available.\n");
+    }
+}
+
+// ----------- DISPLAY WAITING LIST -----------
+void displayQueue() {
+    if (front == NULL) {
+        printf("Waiting list is empty.\n");
+        return;
+    }
+
+    Queue *temp = front;
+
+    printf("\n--- WAITING LIST ---\n");
+
+    while (temp) {
+        printf("Book ID: %d | Name: %s\n",
+               temp->book_id,
+               temp->name);
+        temp = temp->next;
+    }
+}
+
+// ----------- DISPLAY STACK -----------
+void displayStack() {
+    if (top == NULL) {
+        printf("No recent returns.\n");
+        return;
+    }
+
+    Stack *temp = top;
+
+    printf("\n--- RECENT RETURNS ---\n");
+
+    while (temp) {
+        printf("Book ID: %d\n", temp->book_id);
+        temp = temp->next;
+    }
+}
+
+// ----------- SAVE FILE -----------
+void saveToFile() {
+    FILE *fp = fopen("library.txt", "w");
+
+    Book *temp = head;
+
+    while (temp) {
+        fprintf(fp, "%d %s %d %s\n",
+                temp->id,
+                temp->title,
+                temp->available,
+                temp->issued_to);
+        temp = temp->next;
+    }
+
+    fclose(fp);
+    printf("Data saved to file.\n");
+}
+
+// ----------- LOAD FILE -----------
+void loadFromFile() {
+    FILE *fp = fopen("library.txt", "r");
+    if (fp == NULL) return;
+
+    while (1) {
+        Book *newBook = (Book*)malloc(sizeof(Book));
+
+        if (fscanf(fp, "%d %[^\n] %d %[^\n]",
+                   &newBook->id,
+                   newBook->title,
+                   &newBook->available,
+                   newBook->issued_to) != 4) {
+            free(newBook);
+            break;
+        }
+
+        newBook->next = newBook->prev = NULL;
+
+        if (head == NULL) {
+            head = newBook;
+        } else {
+            Book *temp = head;
+            while (temp->next)
+                temp = temp->next;
+
+            temp->next = newBook;
+            newBook->prev = temp;
+        }
+    }
+
+    fclose(fp);
+}
+
+// ----------- MAIN -----------
+int main() {
+    int choice;
+
+    loadFromFile();
+
+    while (1) {
+        printf("\n--- LIBRARY MENU ---\n");
+        printf("1. Add Book\n");
+        printf("2. Display Books\n");
+        printf("3. Issue Book\n");
+        printf("4. Return Book\n");
+        printf("5. Show Waiting List\n");
+        printf("6. Show Recently Returned\n");
+        printf("7. Save & Exit\n");
+
+        printf("Enter choice: ");
+        scanf("%d", &choice);
+
+        switch (choice) {
+            case 1: addBook(); break;
+            case 2: displayBooks(); break;
+            case 3: issueBook(); break;
+            case 4: returnBook(); break;
+            case 5: displayQueue(); break;
+            case 6: displayStack(); break;
+            case 7: saveToFile(); exit(0);
+            default: printf("Invalid choice!\n");
+        }
+    }
+    return 0;
+}
